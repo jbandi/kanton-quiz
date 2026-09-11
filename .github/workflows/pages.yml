@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy quiz and leaderboard
 
 on:
   push:
@@ -8,13 +8,18 @@ on:
 permissions:
   contents: read
 
+# One queue for migrations, Worker deployment and Pages deployment together.
 concurrency:
-  group: github-pages
+  group: production-quiz
   cancel-in-progress: false
 
 jobs:
-  validate-and-package:
+  validate-and-deploy-backend:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CI: 'true'
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -22,10 +27,43 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Validate canton data
-        run: node tests/validate-data.mjs
-      - name: Test quiz logic
-        run: node tests/logic.mjs
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Install backend and test tools
+        run: npm ci --prefix worker
+      - name: Validate canton data and quiz logic
+        run: |
+          node tests/validate-data.mjs
+          node tests/logic.mjs
+          node tests/online-storage.mjs
+      - name: Test Worker with real local D1
+        run: npm test --prefix worker
+      - name: Install test browser
+        working-directory: worker
+        run: npx playwright install --with-deps chromium
+      - name: Test offline quiz and online persistence in browsers
+        env:
+          PLAYWRIGHT_MODULE: ../worker/node_modules/playwright/index.mjs
+        run: |
+          node tests/browser.mjs
+          node tests/online-browser.mjs
+      - name: Check deployment credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing repository secret CLOUDFLARE_API_TOKEN (Workers Scripts Edit and D1 Edit).'; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'Missing repository variable CLOUDFLARE_ACCOUNT_ID.'; exit 1; }
+      - name: Apply D1 migrations
+        run: npm run migrate:remote --prefix worker
+      - name: Deploy Worker
+        run: npm run deploy --prefix worker
+      - name: Check live API and production CORS
+        run: node tests/live-api.mjs
+
+  validate-and-package:
+    needs: validate-and-deploy-backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
       - name: Prepare static files

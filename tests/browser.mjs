@@ -1,7 +1,7 @@
 // Optional: PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/browser.mjs
 import assert from 'node:assert/strict';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const browser = await chromium.launch({ ...(process.env.CI ? {} : { channel: 'chrome' }), headless: true });
 const page = await browser.newPage({ viewport: { width: 768, height: 1024 }, hasTouch: true });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -79,13 +79,11 @@ try {
     }
     await page.waitForFunction(() => !document.getElementById('result-view').hidden);
     assert.equal(await page.locator('.round-results li').count(), rounds);
-    await page.locator('#player-name').fill('<Mia>');
-    await page.locator('#score-form button').click();
-    await page.waitForFunction(() => !document.getElementById('leaderboard-view').hidden);
-    assert.equal(await page.locator('tbody tr.latest').count(), 1);
-    assert.equal(await page.locator('tbody th').textContent(), '<Mia>');
-    await page.reload();
-    assert.equal(await page.locator('tbody th').textContent(), '<Mia>');
+    assert.equal(await page.locator('#score-form button').isDisabled(), true);
+    await page.locator('#result-home').click();
+    await page.waitForFunction(() => !document.getElementById('home-view').hidden);
+    assert.equal(await page.evaluate(() => KQ.onlineStorage.load().pending.length), 0);
+
   }
   await page.goto(url + '#/lernen');
   assert.equal(await page.locator('.map-labels text').count(), 26);
@@ -112,11 +110,8 @@ try {
     assert.equal(await page.locator('#learn-' + canton.id).getAttribute('aria-pressed'), 'true', 'Touch: ' + canton.id);
   }
   await page.goto(url + '#/rangliste/blitz');
-  page.once('dialog', dialog => dialog.accept());
-  await page.locator('#clear-scores').click();
-  assert.equal(await page.locator('tbody tr').count(), 0);
-  await page.goto(url + '#/rangliste/finden');
-  assert.equal(await page.locator('tbody tr').count(), 1);
+  assert.equal(await page.locator('#clear-scores').count(), 0);
+  await page.waitForFunction(() => document.getElementById('ranking').textContent.includes('Online-App'));
   await page.goto(url + '#/quiz/erkennen');
   page.once('dialog', dialog => dialog.dismiss());
   await page.locator('#abort').click();
@@ -131,5 +126,5 @@ try {
   await page.goto(url + '#/');
   assert.equal(await page.locator('#home-view').isVisible(), true);
   assert.deepEqual(errors, []);
-  console.log('✓ file://: alle vier Quiz vollständig, Fehler/Malus, Feedbackpause, Tastatur, Ergebnisse, persistente Ranglisten, Wappen, Lernen und 768-px-Layout.');
+  console.log('✓ file://: alle vier Quiz vollständig, Fehler/Malus, Feedbackpause, Tastatur, Ergebnisse, Offline-Ranglistenhinweis, Wappen, Lernen und 768-px-Layout.');
 } finally { await browser.close(); }

@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kanton-quiz-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "account_id": "e0bb627f282d82a29f090f2546db7362",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://jbandi.github.io,http://localhost:8000,http://127.0.0.1:8000"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "kanton-quiz",
+    "database_id": "64ec4547-a221-4687-ba32-88e5cf27db54",
+    "migrations_dir": "migrations"
+  }]
+}

@@ -4,11 +4,12 @@
   const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const crest = (id, label = '') => '<img class="crest" src="assets/wappen/' + id + '.svg" alt="' + escape(label) + '">';
   let game = null;
-  let result = null;
-  let latestScore = null;
+  let result = KQ.onlineStorage.load().recent;
+  let viewVersion = 0;
   let feedbackTimeout = null;
-  function storageNote() { $('storage-note').hidden = KQ.storage.available; }
+  function storageNote() { $('storage-note').hidden = KQ.storage.available && KQ.onlineStorage.available; }
   function show(view) {
+    viewVersion++;
     document.querySelectorAll('.view').forEach(node => { node.hidden = node.id !== view + '-view'; });
     $('map-panel').hidden = !['game', 'learn'].includes(view);
     window.scrollTo(0, 0);
@@ -16,9 +17,16 @@
   function home() {
     show('home');
     $('quiz-cards').innerHTML = Object.entries(KQ.CONFIG).map(([id, config], index) => {
-      const best = KQ.storage.getBest(id);
-      return '<article class="quiz-card"><div class="card-top"><span class="quiz-icon" aria-hidden="true">' + config.icon + '</span><span class="round-badge">' + config.rounds + ' Runden</span></div><p class="card-number">QUIZ 0' + (index + 1) + '</p><h2>' + config.title + '</h2><p class="card-description">' + config.description + '</p><div class="best-time"><span>DEINE BESTZEIT</span><strong>' + (best ? KQ.formatTime(best.totalMs, true) + ' <small>· ' + escape(best.name) + '</small>' : 'Noch keine Zeit') + '</strong></div><div class="card-actions"><a class="primary" href="#/quiz/' + id + '">Spielen <span aria-hidden="true">→</span></a><a href="#/rangliste/' + id + '">Rangliste</a></div></article>';
+
+      return '<article class="quiz-card"><div class="card-top"><span class="quiz-icon" aria-hidden="true">' + config.icon + '</span><span class="round-badge">' + config.rounds + ' Runden</span></div><p class="card-number">QUIZ 0' + (index + 1) + '</p><h2>' + config.title + '</h2><p class="card-description">' + config.description + '</p><div class="best-time"><span>GEMEINSAME BESTZEIT</span><strong id="best-' + id + '">Wird geladen …</strong></div><div class="card-actions"><a class="primary" href="#/quiz/' + id + '">Spielen <span aria-hidden="true">→</span></a><a href="#/rangliste/' + id + '">Rangliste</a></div></article>';
     }).join('');
+    const version = viewVersion;
+    for (const id of Object.keys(KQ.CONFIG)) {
+      KQ.api.leaderboard(id).then(data => {
+        if (version !== viewVersion) return;
+        $('best-' + id).textContent = data.entries.length ? KQ.formatTime(data.entries[0].totalMs, true) + ' · ' + data.entries[0].nickname : 'Noch keine Zeit';
+      }).catch(error => { if (version === viewVersion) $('best-' + id).textContent = error.message + ' Über «Rangliste» erneut laden.'; });
+    }
     storageNote();
   }
   function mountMap(slot) { $(slot).append($('map-panel')); $('map-panel').hidden = false; }
@@ -106,37 +114,126 @@
     }
     finish() {
       const time = this.timer.stop();
+      time.netMs = Math.max(1, Math.round(time.netMs)); time.totalMs = time.netMs + time.penaltyMs;
       result = { quizId: this.id, ...time, errors: this.history.reduce((sum, r) => sum + r.errors, 0), rounds: this.history, saved: false, date: new Date().toISOString() };
-      const best = KQ.storage.getBest(this.id);
-      result.isBest = !best || result.totalMs < best.totalMs;
+      const best = KQ.onlineStorage.load().personal[this.id];
+      result.isBest = !best || result.totalMs < best;
+      KQ.onlineStorage.update(s => { s.recent = result; s.personal[this.id] = Math.min(best || Infinity, result.totalMs); });
       game = null;
       location.hash = '#/ergebnis';
     }
     dispose() { clearTimeout(feedbackTimeout); this.timer.stop(); KQ.map.onSelect = null; this.locked = true; }
   }
-  function saveResult() {
-    if (!result || result.saved) return;
-    const name = ($('player-name')?.value || '').trim().slice(0, 12) || 'Anonym';
-    const entry = { name, totalMs: result.totalMs, netMs: result.netMs, penaltyMs: result.penaltyMs, errors: result.errors, date: result.date };
-    KQ.storage.addScore(result.quizId, entry);
-    result.saved = true; latestScore = { quizId: result.quizId, ...entry }; storageNote();
+  function persistResult(target) {
+    KQ.onlineStorage.update(s => { if (s.recent?.date === target.date) s.recent = target; });
+    storageNote();
+  }
+  function changeNickname() {
+    if (!confirm('Dein bisheriges Kürzel bleibt vergeben. Du kannst es hier anschliessend nicht erneut auswählen. Kürzel ändern?')) return;
+    KQ.onlineStorage.forget();
+    if (result) {
+      // Queued attempts keep their identity; an unqueued result can choose a new one.
+      if (!result.saved && !KQ.onlineStorage.load().pending.some(e => e.date === result.date)) result.assignedNickname = null;
+      result.draft = ''; persistResult(result);
+    }
+    route();
+  }
+  async function submitResult(reserve = true) {
+    const target = result;
+    if (!target || target.sending || target.saved) return;
+    let name = target.assignedNickname || KQ.onlineStorage.load().nickname;
+    if (!name && !reserve) return;
+    if (!name) {
+      name = KQ.normalizeNickname($('player-name')?.value || target.draft || '');
+      target.draft = name;
+      if (!KQ.validNickname(name)) {
+        target.message = 'Bitte 2–12 Zeichen verwenden: A–Z, 0–9, _ oder -.'; persistResult(target); results(); return;
+      }
+    }
+    target.sending = true; target.message = 'Wird übertragen …';
+    persistResult(target);
+    if (location.hash === '#/ergebnis') results();
+    try {
+      if (!target.assignedNickname && !KQ.onlineStorage.load().nickname) {
+        const reservation = KQ.onlineStorage.reservation(name);
+        const confirmed = await KQ.api.reserve(reservation);
+        KQ.onlineStorage.confirm(confirmed.nickname);
+      }
+      target.assignedNickname = name;
+      const queued = KQ.onlineStorage.enqueue(target, name);
+      persistResult(target);
+      const response = await KQ.transfers.send(queued);
+      target.saved = true;
+      target.message = 'In gemeinsamer Rangliste gespeichert' + (response.improved ? '.' : '. Deine bisherige Bestzeit bleibt bestehen.');
+    } catch (error) {
+      target.message = 'Ergebnis noch nicht übertragen. ' + error.message;
+      if (error.code === 'NICKNAME_NOT_FOUND') {
+        target.assignedNickname = null;
+        target.draft = name;
+      }
+    } finally {
+      target.sending = false; persistResult(target);
+      if (result === target && location.hash === '#/ergebnis') results();
+    }
   }
   function results() {
+    const storedResult = KQ.onlineStorage.load().recent;
+    if (storedResult?.date === result?.date && storedResult?.saved && !result?.sending) result = storedResult;
     if (!result) { location.replace('#/'); return; }
     show('result');
     const perfect = result.rounds.filter(r => r.errors === 0).length;
-    $('result-view').innerHTML = '<p class="eyebrow">' + KQ.CONFIG[result.quizId].title + ' · GESCHAFFT</p><h1 id="result-title">Die Schweiz liegt dir!</h1>' + (result.isBest ? '<p class="new-best">✦ Neue Bestzeit!</p>' : '') + '<div class="result-time">' + KQ.formatTime(result.totalMs, true) + '</div><p class="result-caption">Deine Gesamtzeit</p><div class="result-stats"><div><strong>' + KQ.formatTime(result.netMs, true) + '</strong><span>Nettozeit</span></div><div><strong>+' + result.penaltyMs / 1000 + ' s</strong><span>Malus · ' + result.errors + ' Fehler</span></div><div><strong>' + perfect + ' von ' + result.rounds.length + '</strong><span>Runden fehlerfrei</span></div></div><h2>Deine Kantone</h2><ul class="round-results ' + (result.quizId === 'blitz' ? 'compact' : '') + '">' + result.rounds.map(r => '<li>' + crest(r.id) + '<span>' + escape(KQ.byId[r.id].name) + ' <small>(' + r.id + ')</small></span><strong class="' + (r.errors ? 'error-text' : 'success-text') + '">' + (r.errors ? '✗ ' + r.errors + ' Fehler' : '✓') + '</strong></li>').join('') + '</ul><form id="score-form"><label for="player-name">Dein Name <span>(freiwillig)</span></label><div class="name-row"><input id="player-name" name="name" maxlength="12" autocomplete="nickname" placeholder="Anonym" value="' + escape(KQ.storage.load().lastName) + '"' + (result.saved ? ' disabled' : '') + '><button class="primary" type="submit">' + (result.saved ? 'Rangliste ansehen' : 'In Rangliste eintragen') + '</button></div></form><div class="result-actions"><button class="secondary" id="play-again">Nochmals spielen</button><a id="result-home" href="#/">Zur Übersicht</a></div>';
-    $('score-form').onsubmit = event => { event.preventDefault(); saveResult(); location.hash = '#/rangliste/' + result.quizId; };
-    $('play-again').onclick = () => { saveResult(); location.hash = '#/quiz/' + result.quizId; };
-    $('result-home').onclick = saveResult;
+    $('result-view').innerHTML = '<p class="eyebrow">' + KQ.CONFIG[result.quizId].title + ' · GESCHAFFT</p><h1 id="result-title">Die Schweiz liegt dir!</h1>' + (result.isBest ? '<p class="new-best">✦ Neue persönliche Bestzeit!</p>' : '') + '<div class="result-time">' + KQ.formatTime(result.totalMs, true) + '</div><p class="result-caption">Deine Gesamtzeit</p><div class="result-stats"><div><strong>' + KQ.formatTime(result.netMs, true) + '</strong><span>Nettozeit</span></div><div><strong>+' + result.penaltyMs / 1000 + ' s</strong><span>Malus · ' + result.errors + ' Fehler</span></div><div><strong>' + perfect + ' von ' + result.rounds.length + '</strong><span>Runden fehlerfrei</span></div></div><h2>Deine Kantone</h2><ul class="round-results ' + (result.quizId === 'blitz' ? 'compact' : '') + '">' + result.rounds.map(r => '<li>' + crest(r.id) + '<span>' + escape(KQ.byId[r.id].name) + ' <small>(' + r.id + ')</small></span><strong class="' + (r.errors ? 'error-text' : 'success-text') + '">' + (r.errors ? '✗ ' + r.errors + ' Fehler' : '✓') + '</strong></li>').join('') + '</ul><div id="result-sharing"></div><div class="result-actions"><button class="secondary" id="play-again">Nochmals spielen</button><a id="result-home" href="#/">Zur Übersicht</a><a href="#/rangliste/' + result.quizId + '">Rangliste ansehen</a></div>';
+    const state = KQ.onlineStorage.load();
+    const name = result.assignedNickname || state.nickname;
+    const disabled = result.sending || result.saved || !!KQ.api.unavailable();
+    $('result-sharing').innerHTML = '<form id="score-form">' + (name ? '<p>Dein Kürzel: <strong>' + escape(name) + '</strong></p>' :
+      '<label for="player-name">Dein Kürzel</label><p id="nickname-hint">Wähle ein Kürzel statt deines vollständigen Namens. 2–12 Zeichen: A–Z, 0–9, _ oder -.</p><input id="player-name" autocomplete="nickname" aria-describedby="nickname-hint" value="' + escape(result.draft ?? state.reservation?.nickname ?? KQ.storage.load().lastName) + '"' + (result.sending ? ' disabled' : '') + '>') +
+      '<button class="primary" type="submit"' + (disabled ? ' disabled' : '') + '>' + (result.saved ? 'Gespeichert' : 'In Rangliste eintragen') + '</button></form><p role="status">' + escape(result.message || 'Ergebnis noch nicht übertragen') + '</p><p>' + escape(KQ.api.unavailable()) + '</p>' + (state.nickname ? '<button class="quiet" id="change-nickname"' + (result.sending ? ' disabled' : '') + '>Kürzel ändern</button>' : '');
+    if ($('player-name')) $('player-name').oninput = event => { result.draft = event.target.value; persistResult(result); };
+    if ($('change-nickname')) $('change-nickname').onclick = changeNickname;
+    $('score-form').onsubmit = event => { event.preventDefault(); void submitResult(); };
+    $('play-again').onclick = () => { void submitResult(false); location.hash = '#/quiz/' + result.quizId; };
+    $('result-home').onclick = () => { void submitResult(false); };
     storageNote();
   }
   function leaderboard(id) {
     show('leaderboard');
-    const scores = KQ.storage.load().scores[id];
-    $('leaderboard-view').innerHTML = '<a class="back-link" href="#/">← Zur Übersicht</a><p class="eyebrow">DEINE TOP 10</p><h1 id="leaderboard-title">' + KQ.CONFIG[id].title + '</h1><p>Die schnellsten Gesamtzeiten auf diesem Gerät.</p>' + (scores.length ? '<div class="table-scroll"><table><caption class="sr-only">Rangliste: ' + KQ.CONFIG[id].title + '</caption><thead><tr><th>Rang</th><th>Name</th><th>Gesamtzeit</th><th>Fehler</th><th>Datum</th></tr></thead><tbody>' + scores.map((score, index) => '<tr' + (latestScore?.quizId === id && latestScore.date === score.date && latestScore.totalMs === score.totalMs && latestScore.name === score.name ? ' class="latest"' : '') + '><td>' + (index + 1) + '</td><th scope="row">' + escape(score.name) + '</th><td class="score-time">' + KQ.formatTime(score.totalMs, true) + '</td><td>' + score.errors + '</td><td>' + new Date(score.date).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="empty-state"><span aria-hidden="true">◎</span><h2>Hier ist Platz für deine erste Zeit.</h2><p>Spiele eine Runde und trage dich ein.</p></div>') + '<div class="leaderboard-actions"><a class="primary" href="#/quiz/' + id + '">' + (latestScore?.quizId === id ? 'Nochmals spielen' : 'Spielen') + ' →</a><button class="quiet" id="clear-scores"' + (scores.length ? '' : ' disabled') + '>Rangliste löschen</button></div>';
-    $('clear-scores').onclick = () => { if (confirm('Die Rangliste für «' + KQ.CONFIG[id].title + '» wirklich löschen?')) { KQ.storage.clear(id); leaderboard(id); } };
+    const version = viewVersion;
+    $('leaderboard-view').innerHTML = '<a class="back-link" href="#/">← Zur Übersicht</a><p class="eyebrow">GEMEINSAME RANGLISTE</p><h1 id="leaderboard-title">' + KQ.CONFIG[id].title + '</h1><p>Je Kürzel zählt die beste Gesamtzeit.</p><div id="ranking" aria-live="polite">Wird geladen …</div><div class="leaderboard-actions"><a class="primary" href="#/quiz/' + id + '">Spielen →</a><button id="refresh-scores">Aktualisieren</button></div><div id="pending-scores"></div>';
+    $('refresh-scores').onclick = () => leaderboard(id);
+    renderPending(id, version);
+    KQ.api.leaderboard(id).then(data => {
+      if (version !== viewVersion) return;
+      $('ranking').innerHTML = data.entries.length ? '<div class="table-scroll"><table><caption class="sr-only">Rangliste</caption><thead><tr><th>Platz</th><th>Kürzel</th><th>Gesamtzeit</th><th>Fehler</th><th>Datum</th></tr></thead><tbody>' + data.entries.map((score, i) =>
+        '<tr' + (score.nickname === KQ.onlineStorage.load().nickname ? ' class="latest"' : '') + '><td>' + (i + 1) + '</td><th scope="row">' + escape(score.nickname) + '</th><td class="score-time">' + KQ.formatTime(score.totalMs, true) + '</td><td>' + score.errors + '</td><td>' + new Date(score.achievedAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td></tr>').join('') + '</tbody></table></div>' : '<p>Noch keine Einträge. Hier ist Platz für deine erste Zeit.</p>';
+    }).catch(error => { if (version === viewVersion) $('ranking').textContent = 'Rangliste nicht geladen. ' + error.message + ' Mit «Aktualisieren» erneut versuchen.'; });
     storageNote();
+  }
+  function renderPending(id, version) {
+    const state = KQ.onlineStorage.load();
+    const entries = state.pending.filter(e => e.quizId === id);
+    $('pending-scores').innerHTML = (state.nickname ? '<p>Dein Kürzel: <strong>' + escape(state.nickname) + '</strong> <button id="change-nickname-ranking">Kürzel ändern</button></p>' : '') +
+      (entries.length ? '<h2>Ausstehende Übertragungen</h2>' : '') + entries.map(e => '<div class="pending-entry"><p>' + escape(e.nickname) + ' · ' + KQ.formatTime(e.totalMs, true) + '</p><button data-retry="' + e.id + '"' + (KQ.transfers.busy(e.id) ? ' disabled' : '') + '>' + (e.needsReservation ? 'Kürzel erneut reservieren und übertragen' : 'Erneut übertragen') + '</button><p role="status" id="status-' + e.id + '">Ergebnis noch nicht übertragen</p></div>').join('');
+    if ($('change-nickname-ranking')) $('change-nickname-ranking').onclick = changeNickname;
+    $('pending-scores').querySelectorAll('[data-retry]').forEach(button => button.onclick = async () => {
+      const entry = entries.find(e => e.id === button.dataset.retry);
+      button.disabled = true; $('status-' + entry.id).textContent = 'Wird übertragen …';
+      try {
+        if (entry.needsReservation) {
+          const reserved = await KQ.api.reserve(KQ.onlineStorage.reservation(entry.nickname));
+          // Retrying an old nickname must not replace a newer browser identity.
+          if (!KQ.onlineStorage.load().nickname) KQ.onlineStorage.confirm(reserved.nickname);
+          KQ.onlineStorage.update(s => { s.pending.forEach(e => { if (e.nickname === entry.nickname) e.needsReservation = false; }); });
+        }
+        await KQ.transfers.send(entry);
+        if (version === viewVersion) leaderboard(id);
+      } catch (error) {
+        if (version !== viewVersion) return;
+        renderPending(id, version);
+        $('status-' + entry.id).textContent = 'Ergebnis noch nicht übertragen. ' + error.message;
+      }
+      storageNote();
+    });
   }
   function learn() {
     show('learn'); mountMap('learn-map-slot'); KQ.map.reset(); KQ.map.resetZoom();
@@ -162,6 +259,13 @@
     else home();
     if (!game) $('main').focus({ preventScroll: true });
   }
+  // A page reload ends requests, but keeps the finished game and reservation attempt.
+  if (result) result.sending = false;
+  window.addEventListener('kq-scores-updated', event => {
+    if (location.hash === '#/rangliste/' + event.detail) leaderboard(event.detail);
+    else if (!location.hash || location.hash === '#/') home();
+    else void KQ.api.leaderboard(event.detail).catch(() => {});
+  });
   KQ.map.init();
   $('abort').onclick = () => { if (game && confirm('Quiz wirklich abbrechen? Diese Runde wird nicht gewertet.')) location.hash = '#/'; };
   document.addEventListener('keydown', event => {
