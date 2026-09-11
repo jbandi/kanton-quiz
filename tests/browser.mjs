@@ -1,7 +1,7 @@
 // Optional: PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/browser.mjs
 import assert from 'node:assert/strict';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const browser = await chromium.launch({ ...(process.env.CI ? {} : { channel: 'chrome' }), headless: true });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || (process.env.CI ? undefined : 'chrome'), headless: true });
 const page = await browser.newPage({ viewport: { width: 768, height: 1024 }, hasTouch: true });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));

@@ -15,7 +15,8 @@ concurrency:
 
 jobs:
   validate-and-deploy-backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -38,12 +39,12 @@ jobs:
           node tests/online-storage.mjs
       - name: Test Worker with real local D1
         run: npm test --prefix worker
-      - name: Install test browser
-        working-directory: worker
-        run: npx playwright install --with-deps chromium
+      - name: Check preinstalled test browser
+        run: google-chrome --version
       - name: Test offline quiz and online persistence in browsers
         env:
           PLAYWRIGHT_MODULE: ../worker/node_modules/playwright/index.mjs
+          PLAYWRIGHT_CHANNEL: chrome
         run: |
           node tests/browser.mjs
           node tests/online-browser.mjs

@@ -20,7 +20,7 @@ const server = createServer((req, res) => {
   });
 });
 await new Promise(resolve => server.listen(8000, 'localhost', resolve));
-const browser = await chromium.launch({ ...(process.env.CI ? {} : { channel: 'chrome' }), headless: true });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || (process.env.CI ? undefined : 'chrome'), headless: true });
 const errors = [];
 async function context(options = {}) {
   const ctx = await browser.newContext({ viewport: { width: 768, height: 1024 }, hasTouch: true, ...options });
