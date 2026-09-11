@@ -41,17 +41,17 @@ Der Timer misst mit `performance.now()`. Er pausiert nur beim Feedback in Quiz 1
 
 ## Speicherung und Routen
 
-Alle Besucher der Online-App teilen je Quiz eine Rangliste. Pro Kürzel zählt nur die beste Gesamtzeit; alle Plätze werden angezeigt. Bei gleichen Millisekunden entscheidet zuerst das frühere Serverdatum, dann das Kürzel. Die Darstellung bleibt auf eine Nachkommastelle gerundet.
+Alle vier Ranglisten stehen gemeinsam unter `#/rangliste`, jeweils in einer eigenen Tabelle. Bisherige Links wie `#/rangliste/blitz` leiten dorthin weiter. Datum und Uhrzeit (HH:mm) werden einheitlich in Schweizer Zeit (`Europe/Zurich`) angezeigt. Alle Besucher der Online-App teilen je Quiz eine Rangliste. Pro Kürzel zählt nur die beste Gesamtzeit; alle Plätze werden angezeigt. Bei gleichen Millisekunden entscheidet zuerst das frühere Serverdatum, dann das Kürzel. Die Darstellung bleibt auf eine Nachkommastelle gerundet.
 
 Beim ersten Eintrag wird ein Kürzel mit 2–12 Zeichen (`A–Z`, `0–9`, `_`, `-`) reserviert. Anfangs-/Endleerzeichen werden entfernt und Buchstaben grossgeschrieben. Ein vergebenes Kürzel kann in einem anderen Browser nicht gewählt werden. Dies ist keine Anmeldung und kein Schutz vor manipulierten API-Anfragen. Ein früherer lokaler Name dient nur als Eingabevorschlag; alte Ranglisten werden nicht hochgeladen.
 
-Unter `kantonquiz.online.v1` liegen das bestätigte Kürzel, eine unterbrochene Reservierung samt Request-ID, ausstehende Ergebnisse, persönliche Bestzeiten dieses Browsers und das letzte abgeschlossene Spiel. Fehlgeschlagene Übertragungen lassen sich auch nach Navigation und Reload auf der jeweiligen Rangliste erneut senden. Eine Warteschlange behält je Kürzel und Quiz die beste ausstehende Zeit. Es gibt kein Polling oder Background-Sync. «Aktualisieren» lädt die Serverrangliste neu; Ladefehler zeigen keine vermeintlich aktuellen lokalen Daten.
+Unter `kantonquiz.online.v1` liegen das bestätigte Kürzel, eine unterbrochene Reservierung samt Request-ID, ausstehende Ergebnisse, persönliche Bestzeiten dieses Browsers und das letzte abgeschlossene Spiel. Fehlgeschlagene Übertragungen lassen sich auch nach Navigation und Reload auf der gemeinsamen Ranglistenseite erneut senden. Eine Warteschlange behält je Kürzel und Quiz die beste ausstehende Zeit. Es gibt kein Polling oder Background-Sync. «Aktualisieren» lädt die Serverrangliste neu; Ladefehler zeigen keine vermeintlich aktuellen lokalen Daten.
 
 Ohne bestätigtes Kürzel kann man das Ergebnis ohne Veröffentlichung verlassen. Mit Kürzel starten «Nochmals spielen» und «Zur Übersicht» die Übertragung, ohne auf das Netzwerk zu warten. «Kürzel ändern» entfernt nach Bestätigung nur die lokale Zuordnung. Ausstehende Ergebnisse behalten ihr ursprüngliches Kürzel. Das alte Kürzel bleibt serverseitig reserviert, ebenso seine Ergebnisse. Nach Browserwechsel oder Löschen der Browserdaten muss ein neues Kürzel gewählt werden.
 
 Bei gesperrtem oder vollem LocalStorage bleibt alles für die Sitzung im Arbeitsspeicher; ein Hinweis erklärt den Verlust beim Schliessen. Die Daten unter `kantonquiz.v1` bleiben lesbar. Unter `file://` ist die gemeinsame Rangliste deaktiviert, Spielen und Lernen funktionieren weiter.
 
-Routen: `#/`, `#/quiz/erkennen`, `#/quiz/finden`, `#/quiz/nachbarn`, `#/quiz/blitz`, `#/rangliste/<quizId>`, `#/lernen`, `#/ergebnis`. Ein Reload startet laufende Quiz neu; abgeschlossene Ergebnisse werden lokal wiederhergestellt.
+Routen: `#/`, `#/quiz/erkennen`, `#/quiz/finden`, `#/quiz/nachbarn`, `#/quiz/blitz`, `#/rangliste`, `#/lernen`, `#/ergebnis`. Ein Reload startet laufende Quiz neu; abgeschlossene Ergebnisse werden lokal wiederhergestellt.
 
 ## Konfiguration und Aufbau
 

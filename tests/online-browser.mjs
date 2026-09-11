@@ -43,8 +43,9 @@ async function submit(page, name) {
 }
 async function status(page, text) { await page.waitForFunction(text => document.querySelector('#result-sharing [role=status]')?.textContent.includes(text), text); }
 async function ranking(page, id = 'erkennen', count = 1) {
-  await page.goto('http://localhost:8000/#/rangliste/' + id);
-  await page.waitForFunction(count => document.querySelectorAll('#ranking tbody tr').length === count, count);
+  await page.goto('http://localhost:8000/#/rangliste');
+  await page.locator('#refresh-scores').click();
+  await page.waitForFunction(({ id, count }) => document.querySelectorAll('#ranking-' + id + ' tbody tr').length === count, { id, count });
 }
 const call = async (path, method, data) => {
   const res = await mf.dispatchFetch('http://localhost/api/v1/' + path, { method, headers: { 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
@@ -52,10 +53,18 @@ const call = async (path, method, data) => {
 };
 try {
   const { ctx: a, page: p } = await context();
-  const { page: q } = await context();
+  const { page: q } = await context({ timezoneId: 'America/New_York' });
   await finish(p); await submit(p, ' mia '); await status(p, 'In gemeinsamer Rangliste gespeichert');
   assert.equal(await p.evaluate(() => KQ.onlineStorage.load().nickname), 'MIA');
-  await ranking(q); assert.equal(await q.locator('tbody th').textContent(), 'MIA');
+  await ranking(q); assert.equal(await q.locator('#ranking-erkennen tbody th').textContent(), 'MIA');
+  assert.equal(await q.locator('.quiz-ranking').count(), 4);
+  assert.equal(await q.evaluate(() => location.hash), '#/rangliste');
+  // The date and time must use Switzerland, even for browsers in another timezone.
+  await db.prepare("UPDATE scores SET achieved_at='2026-09-11T22:34:56.000Z' WHERE nickname='MIA'").run();
+  await q.locator('#refresh-scores').click();
+  await q.waitForFunction(() => document.querySelector('#ranking-erkennen tbody td:nth-child(5)')?.textContent === '12.09.2026');
+  assert.equal(await q.locator('#ranking-erkennen tbody td:nth-child(6)').textContent(), '00:34');
+  assert.equal(await q.locator('#ranking-finden').textContent(), 'Noch keine Einträge. Hier ist Platz für deine erste Zeit.');
   await ranking(p); assert.equal(await p.locator('tr.latest').count(), 1);
   await p.reload(); await p.locator('tr.latest').waitFor();
   await finish(q); await submit(q, 'MIA'); await status(q, 'Dieses Kürzel wird schon verwendet');
@@ -76,13 +85,13 @@ try {
   await p.route('**/api/v1/scores', route => route.abort());
   await submit(p); await status(p, 'Ergebnis noch nicht übertragen.');
   await p.locator('#result-home').click();
-  await p.goto('http://localhost:8000/#/rangliste/finden');
+  await p.goto('http://localhost:8000/#/rangliste');
   await p.locator('[data-retry]').waitFor();
   p.once('dialog', dialog => dialog.accept()); await p.locator('#change-nickname-ranking').click();
   await p.unroute('**/api/v1/scores'); await p.reload();
   assert.equal(await p.evaluate(() => KQ.onlineStorage.load().pending[0].nickname), 'MIA');
-  await p.locator('[data-retry]').click(); await p.locator('#ranking tbody tr').waitFor();
-  assert.equal(await p.locator('tbody th').textContent(), 'MIA');
+  await p.locator('[data-retry]').click(); await p.locator('#ranking-finden tbody tr').waitFor();
+  assert.equal(await p.locator('#ranking-finden tbody th').textContent(), 'MIA');
   assert.equal(await p.evaluate(() => KQ.onlineStorage.load().pending.length), 0);
   // An unregistered result stays local when leaving, and old names remain suggestions only.
   await p.evaluate(() => localStorage.setItem('kantonquiz.v1', JSON.stringify({ lastName: 'LEGACY' })));
@@ -96,7 +105,7 @@ try {
   await db.prepare("DELETE FROM players WHERE nickname='RETRY'").run();
   await submit(q); await status(q, 'Kürzel nicht reserviert');
   assert.equal(await q.evaluate(() => KQ.onlineStorage.load().nickname), null);
-  await q.goto('http://localhost:8000/#/rangliste/nachbarn');
+  await q.goto('http://localhost:8000/#/rangliste');
   await q.getByRole('button', { name: 'Kürzel erneut reservieren und übertragen' }).click();
   await q.locator('tr.latest').waitFor();
   // All rows render, even beyond ten; input is text and ranks are contiguous.
@@ -105,7 +114,7 @@ try {
     await call('scores', 'PUT', { nickname: 'MORE' + i, quizId: 'blitz', netMs: 2000 + i, penaltyMs: 0, errors: 0 });
   }
   await ranking(q, 'blitz', 12);
-  assert.deepEqual(await q.locator('tbody td:first-child').allTextContents(), Array.from({ length: 12 }, (_, i) => String(i + 1)));
+  assert.deepEqual(await q.locator('#ranking-blitz tbody td:first-child').allTextContents(), Array.from({ length: 12 }, (_, i) => String(i + 1)));
   await q.screenshot({ path: '/tmp/kanton-quiz-online-ranking.png', fullPage: true });
   // Load errors never retain a seemingly fresh table, timeout is bounded.
   await q.route('**/api/v1/leaderboard?**', route => route.abort());
@@ -114,10 +123,19 @@ try {
   assert.equal(await q.locator('#ranking tbody').count(), 0);
   await q.unroute('**/api/v1/leaderboard?**');
   await q.route('**/api/v1/leaderboard?quizId=erkennen', async route => { await new Promise(r => setTimeout(r, 300)); await route.continue(); });
-  await q.goto('http://localhost:8000/#/rangliste/erkennen');
+  await q.locator('#refresh-scores').click();
+  await q.goto('http://localhost:8000/#/lernen');
+  await q.waitForTimeout(350);
+  assert.equal(await q.locator('#learn-view').isVisible(), true);
+  assert.equal(await q.locator('#leaderboard-view').isVisible(), false);
   await q.goto('http://localhost:8000/#/rangliste/blitz');
-  await q.waitForFunction(() => document.querySelectorAll('#ranking tbody tr').length === 12);
-  await q.waitForTimeout(350); assert.equal(await q.locator('#leaderboard-title').textContent(), 'Blitz');
+  await q.waitForFunction(() => location.hash === '#/rangliste' && document.querySelectorAll('#ranking-blitz tbody tr').length === 12);
+  assert.equal(await q.locator('#leaderboard-title').textContent(), 'Alle Ranglisten');
+  // One failed quiz does not hide the other three rankings.
+  await q.route('**/api/v1/leaderboard?quizId=finden', route => route.abort());
+  await q.locator('#refresh-scores').click();
+  await q.waitForFunction(() => document.getElementById('ranking-finden').textContent.includes('Rangliste nicht geladen') && document.querySelectorAll('#ranking-blitz tbody tr').length === 12);
+  await q.unroute('**/api/v1/leaderboard?quizId=finden');
   // Slow reservation: duplicate submit disabled, navigation stays immediate.
   const { page: slow } = await context(); await finish(slow);
   await slow.route('**/api/v1/players', async route => { await new Promise(r => setTimeout(r, 1000)); await route.abort(); });
@@ -156,7 +174,7 @@ try {
   await b.reload(); await b.goto('http://localhost:8000/#/quiz/blitz');
   assert.equal(await b.locator('#game-view').isVisible(), true);
   await b.evaluate(() => { KQ.onlineStorage.confirm('SESSION'); });
-  await b.goto('http://localhost:8000/#/rangliste/blitz');
+  await b.goto('http://localhost:8000/#/rangliste');
   assert.equal(await b.locator('#storage-note').isVisible(), true);
   assert.equal(await b.evaluate(() => KQ.onlineStorage.load().nickname), 'SESSION');
   await a.close(); assert.deepEqual(errors, []);

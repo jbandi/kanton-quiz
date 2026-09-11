@@ -109,7 +109,7 @@ try {
     await page.touchscreen.tap(position.x, position.y);
     assert.equal(await page.locator('#learn-' + canton.id).getAttribute('aria-pressed'), 'true', 'Touch: ' + canton.id);
   }
-  await page.goto(url + '#/rangliste/blitz');
+  await page.goto(url + '#/rangliste');
   assert.equal(await page.locator('#clear-scores').count(), 0);
   await page.waitForFunction(() => document.getElementById('ranking').textContent.includes('Online-App'));
   await page.goto(url + '#/quiz/erkennen');

@@ -10,3 +10,9 @@
 #pending-scores { margin-top: 28px; }
 .pending-entry { border-top: 1px solid #dedbd5; padding: 16px 0; }
 .best-time strong { overflow-wrap: anywhere; }
+
+.quiz-ranking { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--line); }
+.quiz-ranking h2 { margin-bottom: 0; }
+.quiz-ranking .table-scroll { margin: 20px 0 0; }
+.quiz-ranking th, .quiz-ranking td { padding: 16px 14px; }
+.quiz-ranking [aria-live] > p { margin-top: 20px; }
