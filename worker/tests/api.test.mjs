@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { penalties } from '../src/index.js';
@@ -18,7 +18,17 @@ before(async () => {
   mf = new Miniflare(convertV4MiniflareOptions({ modules: true, scriptPath: new URL('../src/index.js', import.meta.url).pathname,
     compatibilityDate: '2026-09-01', d1Databases: ['DB'], bindings: { ALLOWED_ORIGINS: origin + ',http://localhost:8000' } }));
   db = await mf.getD1Database('DB');
-  await db.exec(readFileSync(new URL('../migrations/0001_leaderboard.sql', import.meta.url), 'utf8').replace(/\n/g, ' '));
+  const dir = new URL('../migrations/', import.meta.url);
+  for (const file of readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) {
+    // Seed the old schema to prove that upgrading preserves existing scores.
+    if (file === '0002_silhouette_quiz.sql') {
+      await db.exec("INSERT INTO players VALUES ('OLD','old-reservation','2026-01-01'); INSERT INTO scores VALUES ('OLD','blitz',1000,0,1000,0,'2026-01-01');");
+    }
+    await db.exec(readFileSync(new URL(file, dir), 'utf8').replace(/^--.*$/gm, '').replace(/\n/g, ' '));
+  }
+  assert.equal((await db.prepare("SELECT total_ms FROM scores WHERE nickname='OLD'").first()).total_ms, 1000);
+  assert.equal((await db.prepare("SELECT achieved_at FROM scores WHERE nickname='OLD'").first()).achieved_at, '2026-01-01');
+  await db.exec("DELETE FROM scores WHERE nickname='OLD'; DELETE FROM players WHERE nickname='OLD';");
 });
 after(async () => { await mf?.dispose(); });
 test('penalties are identical to frontend configuration', () => {
@@ -48,7 +58,7 @@ test('strict atomic best score, duplicates, concurrent writes and separate modes
   await Promise.all([score('BEST', 500), score('BEST', 1500), score('BEST', 700)]);
   assert.equal((await score('BEST', 500)).body.best.netMs, 500);
   for (const id of Object.keys(penalties)) assert.equal((await score('BEST', 500, id)).status, 200);
-  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM scores WHERE nickname=?').bind('BEST').first()).n, 4);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM scores WHERE nickname=?').bind('BEST').first()).n, Object.keys(penalties).length);
   const computed = await score('BEST', 300, 'blitz', { totalMs: 1, achievedAt: 'fake', rank: 1 });
   assert.equal(computed.body.best.totalMs, 300);
   assert.notEqual(computed.body.best.achievedAt, 'fake');

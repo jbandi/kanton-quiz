@@ -301,7 +301,8 @@ KQ.CONFIG = {
   erkennen: { title: 'Kanton erkennen', rounds: 9, penalty: 10000, feedback: 1200, icon: '◎', description: 'Erkenne den markierten Kanton an Name, Wappen und Kürzel.' },
   finden: { title: 'Kanton finden', rounds: 9, penalty: 10000, feedback: 1200, icon: '⌖', description: 'Zeige auf der Karte, wo der gesuchte Kanton liegt.' },
   nachbarn: { title: 'Nachbarkantone', rounds: 8, penalty: 5000, feedback: 2500, icon: '▦', description: 'Welche Kantone grenzen aneinander? Wähle die Nachbarn.' },
-  blitz: { title: 'Blitz', rounds: 26, penalty: 5000, feedback: 0, icon: 'ϟ', description: 'Finde alle 26 Kantone. Wie schnell schaffst du die ganze Schweiz?' }
+  blitz: { title: 'Blitz', rounds: 26, penalty: 5000, feedback: 0, icon: 'ϟ', description: 'Finde alle 26 Kantone. Wie schnell schaffst du die ganze Schweiz?' },
+  silhouette: { title: 'Kanton ohne Grenzen finden', rounds: 9, penalty: 10000, feedback: 1200, icon: '◎', description: 'Finde den Kanton auf der Schweizer Karte ohne Kantonsgrenzen.' }
 };
 KQ.byId = Object.fromEntries(KQ.KANTONE.map(k => [k.id, k]));
 KQ.shuffle = function (items) {

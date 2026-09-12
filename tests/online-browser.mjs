@@ -1,6 +1,6 @@
 // Browser integration against an isolated real D1 database, never production.
 import assert from 'node:assert/strict';
-import { readFile, readFileSync } from 'node:fs';
+import { readFile, readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve, extname } from 'node:path';
 import { Miniflare, convertV4MiniflareOptions } from '../worker/node_modules/miniflare/dist/src/index.js';
@@ -8,7 +8,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || '../worker/no
 const mf = new Miniflare(convertV4MiniflareOptions({ modules: true, scriptPath: resolve('worker/src/index.js'),
   compatibilityDate: '2026-09-01', d1Databases: ['DB'], bindings: { ALLOWED_ORIGINS: 'http://localhost:8000' } }));
 const db = await mf.getD1Database('DB');
-await db.exec(readFileSync('worker/migrations/0001_leaderboard.sql', 'utf8').replace(/\n/g, ' '));
+for (const file of readdirSync('worker/migrations').filter(f => f.endsWith('.sql')).sort()) await db.exec(readFileSync('worker/migrations/' + file, 'utf8').replace(/^--.*$/gm, '').replace(/\n/g, ' '));
 const apiUrl = String(await mf.ready).replace(/\/$/, '');
 const server = createServer((req, res) => {
   const path = resolve('.' + (req.url === '/' ? '/index.html' : req.url.split('?')[0]));
@@ -57,7 +57,7 @@ try {
   await finish(p); await submit(p, ' mia '); await status(p, 'In gemeinsamer Rangliste gespeichert');
   assert.equal(await p.evaluate(() => KQ.onlineStorage.load().nickname), 'MIA');
   await ranking(q); assert.equal(await q.locator('#ranking-erkennen tbody th').textContent(), 'MIA');
-  assert.equal(await q.locator('.quiz-ranking').count(), 4);
+  assert.equal(await q.locator('.quiz-ranking').count(), 5);
   assert.equal(await q.evaluate(() => location.hash), '#/rangliste');
   // The date and time must use Switzerland, even for browsers in another timezone.
   await db.prepare("UPDATE scores SET achieved_at='2026-09-11T22:34:56.000Z' WHERE nickname='MIA'").run();
@@ -108,6 +108,9 @@ try {
   await q.goto('http://localhost:8000/#/rangliste');
   await q.getByRole('button', { name: 'Kürzel erneut reservieren und übertragen' }).click();
   await q.locator('tr.latest').waitFor();
+  await finish(q, 'silhouette', 4321); await submit(q); await status(q, 'In gemeinsamer Rangliste gespeichert');
+  await ranking(p, 'silhouette');
+  assert.equal(await p.locator('#ranking-silhouette tbody th').textContent(), 'RETRY');
   // All rows render, even beyond ten; input is text and ranks are contiguous.
   for (let i = 0; i < 12; i++) {
     await call('players', 'POST', { nickname: 'MORE' + i, requestId: crypto.randomUUID() });

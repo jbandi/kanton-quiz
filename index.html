@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Lerne die 26 Schweizer Kantone mit vier Quiz, einer interaktiven Karte und deinen persönlichen Bestzeiten. Kostenlos und offline spielbar.">
+  <meta name="description" content="Lerne die 26 Schweizer Kantone mit fünf Quiz, einer interaktiven Karte und deinen persönlichen Bestzeiten. Kostenlos und offline spielbar.">
   <title>Kantons-Quiz</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -31,6 +31,7 @@
     <section id="learn-view" class="view" hidden aria-labelledby="learn-title">
       <a class="back-link" href="#/">← Zur Übersicht</a><p class="eyebrow">ENTDECKEN & MERKEN</p><h1 id="learn-title">Alle 26 Kantone</h1><p>Tippe auf einen Kanton oder ein Wappen, um beides zu verbinden.</p><div id="learn-map-slot"></div><div id="canton-grid" class="canton-grid"></div>
     </section>
+    <section id="hitareas-view" class="view" hidden aria-labelledby="hitareas-title"></section>
     <div id="map-panel" class="map-panel" hidden>
       <div class="map-toolbar"><span>Die Schweiz <span class="map-tip">· Vergrössere die Karte für kleine Kantone</span></span><div><button id="zoom-out" aria-label="Karte verkleinern">−</button><button id="zoom-in" aria-label="Karte vergrössern">+</button></div></div>
       <div id="map-scroll" class="map-scroll"><svg id="swiss-map" aria-label="Karte der 26 Schweizer Kantone" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1052.361 744.09399" fill="#e7e5e4" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round">
@@ -120,6 +121,6 @@
   <footer>Mit jedem Versuch ein Stück mehr Schweiz. <a href="#/lernen">Alle Kantone</a></footer>
   <script src="js/data.js"></script><script src="js/storage.js"></script>
   <script src="js/config.js"></script>
-  <script src="js/api.js"></script><script src="js/timer.js"></script><script src="js/map.js"></script><script src="js/quiz-erkennen.js"></script><script src="js/quiz-finden.js"></script><script src="js/quiz-nachbarn.js"></script><script src="js/quiz-blitz.js"></script><script src="js/app.js"></script>
+  <script src="js/api.js"></script><script src="js/timer.js"></script><script src="js/map.js"></script><script src="js/quiz-erkennen.js"></script><script src="js/quiz-finden.js"></script><script src="js/quiz-nachbarn.js"></script><script src="js/quiz-blitz.js"></script><script src="js/quiz-silhouette.js"></script><script src="js/app.js"></script>
 </body>
 </html>

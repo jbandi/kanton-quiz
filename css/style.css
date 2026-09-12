@@ -16,3 +16,13 @@
 .quiz-ranking .table-scroll { margin: 20px 0 0; }
 .quiz-ranking th, .quiz-ranking td { padding: 16px 14px; }
 .quiz-ranking [aria-live] > p { margin-top: 20px; }
+
+/* One continuous silhouette; no hover, focus or feedback reveals a canton. */
+#swiss-map.silhouette .kanton { fill: #d4dce1; stroke: #d4dce1; stroke-width: 1; transition: none; animation: none; cursor: crosshair; }
+#swiss-map.silhouette { cursor: crosshair; }
+.hit-areas { opacity: 0; pointer-events: none; }
+.show-hit-areas .hit-areas { opacity: 1; }
+.map-hit-marker { pointer-events: none; stroke: white; stroke-width: 2; fill: #126da7; }
+.map-hit-marker[data-state="correct"] { fill: var(--green); }
+.map-hit-marker[data-state="wrong"] { fill: var(--red); }
+#hit-canton { font: inherit; min-height: 44px; max-width: 100%; }

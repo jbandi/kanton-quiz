@@ -44,6 +44,7 @@
       node.classList.add('flash');
     },
     reset(keepFound = false) {
+      KQ.silhouette?.disable();
       this.onSelect = null;
       this.layer.replaceChildren();
       this.svg.querySelectorAll('.kanton').forEach(node => {

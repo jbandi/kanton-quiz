@@ -1,4 +1,4 @@
-export const penalties = { erkennen: 10000, finden: 10000, nachbarn: 5000, blitz: 5000 };
+export const penalties = { erkennen: 10000, finden: 10000, nachbarn: 5000, blitz: 5000, silhouette: 10000 };
 const columns = `nickname, quiz_id AS quizId, net_ms AS netMs, penalty_ms AS penaltyMs,
   total_ms AS totalMs, errors, achieved_at AS achievedAt`;
 const nickname = value => typeof value === 'string' ? value.trim().replace(/[a-z]/g, c => c.toUpperCase()) : '';

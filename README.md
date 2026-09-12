@@ -1,6 +1,6 @@
 # Kantons-Quiz
 
-Vier Quiz und eine Lernansicht für die 26 Schweizer Kantone, gemäss [SPEC.md](SPEC.md). Deutsche Oberfläche mit Schweizer Schreibweise, für Desktop und Tablet ab 768 px.
+Fünf Quiz und eine Lernansicht für die 26 Schweizer Kantone, gemäss [SPEC.md](SPEC.md). Deutsche Oberfläche mit Schweizer Schreibweise, für Desktop und Tablet ab 768 px.
 
 Die gemeinsame Rangliste verwendet einen Cloudflare Worker mit D1 gemäss [SPEC-PERSISTENZ.md](SPEC-PERSISTENZ.md). Das Spiel bleibt statisches HTML/CSS/JavaScript ohne Frontend-Build und ist auch offline spielbar.
 
@@ -33,6 +33,7 @@ Das Pages-Artefakt enthält ausschliesslich `index.html`, `css/`, `js/` und `ass
 - **Kanton finden:** 9 Runden mit derselben Blockfolge. Den gesuchten Kanton auf der Karte anklicken.
 - **Nachbarkantone:** 8 Runden mit Mehrfachauswahl. `1`–`4` schalten Optionen um, `Enter` oder «Prüfen» bestätigt. Falsch gewählte und vergessene Nachbarn zählen jeweils als Fehler. `Enter` oder ein Tap überspringt das Feedback.
 - **Blitz:** alle 26 Kantone ohne Wiederholung finden. Gefundene Kantone bleiben grün.
+- **Kanton ohne Grenzen finden:** 9 Runden wie «Kanton finden», mit Namen, Wappen und Kürzeln. Die Karte zeigt nur die Schweizer Silhouette. Kleine Kantone haben einen grösseren Toleranzrand; jeder Fehlversuch kostet 10 Sekunden. Ein Punkt zeigt den letzten Treffer oder Fehlversuch. Mit Pfeiltasten lässt sich der Punkt bewegen (Umschalt für grössere Schritte), Enter/Leertaste bestätigt.
 - **Alle Kantone:** Karte und Wappenraster sind gegenseitig auswählbar; alle Kürzel und Hauptorte lassen sich nachschauen.
 
 Mit `+` die Karte vergrössern und anschliessend per Touch oder Scrollen verschieben, um kleine Kantone präzise zu treffen. `−` verkleinert sie wieder. Kartenflächen sind auch mit Tab und Enter/Leertaste bedienbar. Die Beschriftung für Screenreader enthält die Kantonsnamen; visuell verraten keine Tooltips die Antwort.
@@ -41,7 +42,7 @@ Der Timer misst mit `performance.now()`. Er pausiert nur beim Feedback in Quiz 1
 
 ## Speicherung und Routen
 
-Alle vier Ranglisten stehen gemeinsam unter `#/rangliste`, jeweils in einer eigenen Tabelle. Bisherige Links wie `#/rangliste/blitz` leiten dorthin weiter. Datum und Uhrzeit (HH:mm) werden einheitlich in Schweizer Zeit (`Europe/Zurich`) angezeigt. Alle Besucher der Online-App teilen je Quiz eine Rangliste. Pro Kürzel zählt nur die beste Gesamtzeit; alle Plätze werden angezeigt. Bei gleichen Millisekunden entscheidet zuerst das frühere Serverdatum, dann das Kürzel. Die Darstellung bleibt auf eine Nachkommastelle gerundet.
+Alle fünf Ranglisten stehen gemeinsam unter `#/rangliste`, jeweils in einer eigenen Tabelle. Bisherige Links wie `#/rangliste/blitz` leiten dorthin weiter. Datum und Uhrzeit (HH:mm) werden einheitlich in Schweizer Zeit (`Europe/Zurich`) angezeigt. Alle Besucher der Online-App teilen je Quiz eine Rangliste. Pro Kürzel zählt nur die beste Gesamtzeit; alle Plätze werden angezeigt. Bei gleichen Millisekunden entscheidet zuerst das frühere Serverdatum, dann das Kürzel. Die Darstellung bleibt auf eine Nachkommastelle gerundet.
 
 Beim ersten Eintrag wird ein Kürzel mit 2–12 Zeichen (`A–Z`, `0–9`, `_`, `-`) reserviert. Anfangs-/Endleerzeichen werden entfernt und Buchstaben grossgeschrieben. Ein vergebenes Kürzel kann in einem anderen Browser nicht gewählt werden. Dies ist keine Anmeldung und kein Schutz vor manipulierten API-Anfragen. Ein früherer lokaler Name dient nur als Eingabevorschlag; alte Ranglisten werden nicht hochgeladen.
 
@@ -51,13 +52,24 @@ Ohne bestätigtes Kürzel kann man das Ergebnis ohne Veröffentlichung verlassen
 
 Bei gesperrtem oder vollem LocalStorage bleibt alles für die Sitzung im Arbeitsspeicher; ein Hinweis erklärt den Verlust beim Schliessen. Die Daten unter `kantonquiz.v1` bleiben lesbar. Unter `file://` ist die gemeinsame Rangliste deaktiviert, Spielen und Lernen funktionieren weiter.
 
-Routen: `#/`, `#/quiz/erkennen`, `#/quiz/finden`, `#/quiz/nachbarn`, `#/quiz/blitz`, `#/rangliste`, `#/lernen`, `#/ergebnis`. Ein Reload startet laufende Quiz neu; abgeschlossene Ergebnisse werden lokal wiederhergestellt.
+Routen: `#/`, `#/quiz/erkennen`, `#/quiz/finden`, `#/quiz/nachbarn`, `#/quiz/blitz`, `#/quiz/silhouette`, `#/rangliste`, `#/lernen`, `#/ergebnis`. Ein Reload startet laufende Quiz neu; abgeschlossene Ergebnisse werden lokal wiederhergestellt.
 
 ## Konfiguration und Aufbau
 
 Rundenzahl, Strafzeit (Millisekunden) und Feedbackdauer stehen zentral in `KQ.CONFIG` in [js/data.js](js/data.js). Die Blöcke in Quiz 1 und 2 teilen die konfigurierte Rundenzahl in drei Abschnitte. Die Rundenzahl sollte zwischen 1 und 26 bleiben, ohne Wiederholungen.
 
-Klassische Script-Tags verwenden den gemeinsamen Namespace `window.KQ`. Daten, Speicher, Timer, Kartenbedienung und die vier Quiz-Modi liegen in separaten Dateien unter `js/`; `app.js` verbindet Routing, Spielablauf, Ergebnis und Rangliste. Die Karte ist direkt in `index.html` eingebettet. Es gibt keine externen Frontend-Laufzeitabhängigkeiten, ES-Module oder lokalen `fetch()`-Aufrufe. `js/api.js` kapselt HTTPS-Anfragen mit 10 Sekunden Timeout; `js/config.js` enthält die öffentliche API-URL, keine Zugangsdaten.
+Klassische Script-Tags verwenden den gemeinsamen Namespace `window.KQ`. Daten, Speicher, Timer, Kartenbedienung und die fünf Quiz-Modi liegen in separaten Dateien unter `js/`; `app.js` verbindet Routing, Spielablauf, Ergebnis und Rangliste. Die Karte ist direkt in `index.html` eingebettet. Es gibt keine externen Frontend-Laufzeitabhängigkeiten, ES-Module oder lokalen `fetch()`-Aufrufe. `js/api.js` kapselt HTTPS-Anfragen mit 10 Sekunden Timeout; `js/config.js` enthält die öffentliche API-URL, keine Zugangsdaten.
+
+## Trefferflächen prüfen
+
+Die separate Prüfseite ist bewusst nicht aus der App verlinkt:
+
+- Online: <https://jbandi.github.io/kanton-quiz/#/trefferflaechen>
+- Lokal: <http://localhost:8000/#/trefferflaechen> (auch `index.html#/trefferflaechen` unter `file://`).
+
+Sie zeigt dieselben Trefferflächen, die das Quiz «Kanton ohne Grenzen finden» tatsächlich verwendet. Über die Auswahl lässt sich ein einzelner Kanton samt Toleranzrand anzeigen; ein Tap meldet, ob die Stelle akzeptiert wird. Überlappende Trefferbereiche sind beabsichtigt: Im Quiz wird immer der gesuchte Kanton geprüft, unabhängig davon, welcher Nachbarkanton unter dem Finger liegt. Auch knapp ausserhalb der Landesgrenze ist ein Treffer innerhalb des Toleranzrands gültig.
+
+Die Prüfung verwendet die Original-SVG-Flächen einschliesslich Exklaven und einen abgerundeten Rand. Der Radius beträgt 4–14 Karteneinheiten (Schweizer Kartenbreite: 1052 Einheiten); kleine Kantone erhalten mehr Toleranz. Er wird in `js/quiz-silhouette.js` aus der Ausdehnung des Kantons berechnet und skaliert beim Zoomen mit. Die farbige Prüfansicht zeigt den vollständigen Bereich inklusive dieses Rands. Im Spiel bleiben Kantonsgrenzen auch bei Hover und Feedback unsichtbar.
 
 ## Backend einrichten und entwickeln
 
@@ -109,14 +121,15 @@ node tests/online-storage.mjs
 npm test --prefix worker
 PLAYWRIGHT_MODULE=../worker/node_modules/playwright/index.mjs node tests/browser.mjs
 node tests/online-browser.mjs
+node tests/browser-silhouette.mjs
 node tests/live-api.mjs
 ```
 
 Die Browser-Skripte verwenden lokal installiertes Google Chrome. In CI läuft derselbe Test über `PLAYWRIGHT_CHANNEL=chrome` mit dem [vorinstallierten Chrome des Ubuntu-24.04-Runners](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md), ohne zusätzlichen Browserdownload. Für einen eigenen Runner kann alternativ Playwright-Chromium installiert werden (`cd worker && npx playwright install --with-deps chromium`); danach `CI=true` ohne `PLAYWRIGHT_CHANNEL` setzen. Der Online-Browsertest startet seinen eigenen statischen Server auf Port 8000; dieser Port muss frei sein. Er verwendet eine isolierte lokale D1-Datenbank über Miniflare, keine Produktionsdaten. Wrangler und Miniflare sind gemeinsam versioniert; Miniflare 5 stellt für den Testaufbau die offizielle `convertV4MiniflareOptions`-Schnittstelle bereit.
 
-Die Daten- und Logiktests prüfen weiterhin die Kantonsdaten, 20 800 zufällige Fragen, Timer, Malus und alten lokalen Speicher. Die zusätzlichen Tests prüfen echte SQL-Constraints und Konkurrenzfälle, Reservierungswiederholungen, getrennte Quiz, Datumsstabilität, mehr als zehn Einträge, Eingabegrenzen, CORS, Netzwerkfehler, Reload, Kürzelwechsel und blockierten Speicher. Die Offline-Browserabnahme spielt alle vier Quiz vollständig durch und prüft Tastatur, Touch für alle Kantone bei 768 px, Lernansicht und lokale Wappen. Screenshots: `/tmp/kanton-quiz-*.png`.
+Die Daten- und Logiktests prüfen weiterhin die Kantonsdaten, 20 800 zufällige Fragen, Timer, Malus und alten lokalen Speicher. Die zusätzlichen Tests prüfen echte SQL-Constraints und Konkurrenzfälle, Reservierungswiederholungen, getrennte Quiz, Datumsstabilität, mehr als zehn Einträge, Eingabegrenzen, CORS, Netzwerkfehler, Reload, Kürzelwechsel und blockierten Speicher. Die Offline-Browserabnahme spielt die vier bisherigen Quiz vollständig durch und prüft Tastatur, Touch für alle Kantone bei 768 px, Lernansicht und lokale Wappen. Der zusätzliche Silhouetten-Browsertest prüft alle 26 Trefferflächen, tolerante Touch-Treffer bei kleinen Kantonen, Zoom, alle neun Runden und die Rückkehr zur normalen Karte. Screenshots: `/tmp/kanton-quiz-*.png`.
 
-`tests/live-api.mjs` ist eine rein lesende Produktionsprüfung für alle vier Ranglisten und den GitHub-Pages-Origin. Zusätzlich wurde die lokale Frontend-Version mit zwei unabhängigen Browserkontexten gegen die echte Worker/D1-API geprüft; dabei angelegte Testkürzel wurden gezielt wieder entfernt. Nach einem Deployment wird die GitHub-Pages-Version mit zwei getrennten Browserkontexten geprüft.
+`tests/live-api.mjs` ist eine rein lesende Produktionsprüfung für alle fünf Ranglisten und den GitHub-Pages-Origin. Zusätzlich wurde die lokale Frontend-Version mit zwei unabhängigen Browserkontexten gegen die echte Worker/D1-API geprüft; dabei angelegte Testkürzel wurden gezielt wieder entfernt. Nach einem Deployment wird die GitHub-Pages-Version mit zwei getrennten Browserkontexten geprüft.
 
 ## Manuelle Bereinigung
 
@@ -133,7 +146,31 @@ DELETE FROM scores WHERE nickname = 'TEST01';
 DELETE FROM players WHERE nickname = 'TEST01';
 ```
 
-Vor einer vollständigen Bereinigung nach dem Wochenende ein Backup exportieren: `npx wrangler d1 export DB --remote --output /sicherer/pfad/kanton-quiz-backup.sql`. Erst nach bewusster Auswahl können in einer Bereinigungsdatei alle `scores`, danach alle `players` gelöscht werden. Exportdateien mit Schülerkürzeln ausserhalb des Repositories aufbewahren. Browser mit einem inzwischen gelöschten Kürzel erhalten beim nächsten Schreiben eine Aufforderung zur erneuten Reservierung; ihr Ergebnis bleibt erhalten.
+### Alle Ranglisten und Kürzel zurücksetzen
+
+Im Projektordner starten:
+
+```sh
+cd worker
+
+# Optional: vorher ein Backup ausserhalb des Repositories erstellen
+npx wrangler d1 export DB --remote --output ~/kanton-quiz-backup.sql
+
+# Alle Ergebnisse und reservierten Kürzel in der Produktionsdatenbank löschen
+npx wrangler d1 execute DB --remote --command "DELETE FROM scores; DELETE FROM players;"
+```
+
+Die Tabellen bleiben erhalten und die App funktioniert weiter. Browser mit einem inzwischen gelöschten Kürzel erhalten beim nächsten Schreiben eine Aufforderung zur erneuten Reservierung; ihr Ergebnis bleibt lokal erhalten. Exportdateien mit Schülerkürzeln ausserhalb des Repositories aufbewahren.
+
+### Gesamte Datenbank löschen
+
+Im Verzeichnis `worker/` ausführen:
+
+```sh
+npx wrangler d1 delete kanton-quiz
+```
+
+Wrangler fragt vor dem Löschen nach einer Bestätigung. **Danach funktioniert die gemeinsame Rangliste nicht mehr**, bis eine neue Datenbank angelegt, deren ID in `worker/wrangler.jsonc` eingetragen, die Migrationen ausgeführt und der Worker erneut veröffentlicht wurde. Spielen und Lernen bleiben offline nutzbar.
 
 ## Quellen und Lizenzen
 

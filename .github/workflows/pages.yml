@@ -47,6 +47,7 @@ jobs:
           PLAYWRIGHT_CHANNEL: chrome
         run: |
           node tests/browser.mjs
+          node tests/browser-silhouette.mjs
           node tests/online-browser.mjs
       - name: Check deployment credentials
         run: |

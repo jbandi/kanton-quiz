@@ -9,7 +9,7 @@ const url = new URL('../index.html', import.meta.url).href;
 try {
   await page.goto(url);
   await page.clock.install();
-  assert.equal(await page.locator('.quiz-card').count(), 4);
+  assert.equal(await page.locator('.quiz-card').count(), 5);
   await page.screenshot({ path: '/tmp/kanton-quiz-home.png', fullPage: true });
   const cantons = await page.evaluate(() => KQ.KANTONE);
   const byId = Object.fromEntries(cantons.map(k => [k.id, k]));

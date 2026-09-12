@@ -11,7 +11,7 @@
   function show(view) {
     viewVersion++;
     document.querySelectorAll('.view').forEach(node => { node.hidden = node.id !== view + '-view'; });
-    $('map-panel').hidden = !['game', 'learn'].includes(view);
+    $('map-panel').hidden = !['game', 'learn', 'hitareas'].includes(view);
     window.scrollTo(0, 0);
   }
   function home() {
@@ -253,6 +253,24 @@
     KQ.map.onSelect = id => select(id, true);
     document.querySelectorAll('.canton-card').forEach(node => node.onclick = () => select(node.dataset.id, false));
   }
+  function hitareas() {
+    show('hitareas');
+    $('hitareas-view').innerHTML = '<h1 id="hitareas-title">Trefferflächen ohne Kantonsgrenzen</h1><p>Die farbigen Flächen zeigen die tatsächlichen Trefferbereiche inklusive Toleranzrand. Bei Überlappungen zählt der gesuchte Kanton. Tippe auf die Karte, um die Trefferprüfung zu sehen.</p><label for="hit-canton">Kanton</label><select id="hit-canton"><option value="">Alle Kantone</option>' + KQ.KANTONE.map(k => '<option value="' + k.id + '">' + k.name + ' (' + k.id + ')</option>').join('') + '</select><p id="hit-description"></p><p id="hit-status" role="status"></p><div id="hitareas-map-slot"></div>';
+    mountMap('hitareas-map-slot'); KQ.map.resetZoom();
+    KQ.silhouette.enable(point => {
+      const selected = $('hit-canton').value;
+      const matches = KQ.KANTONE.filter(k => (!selected || k.id === selected) && KQ.silhouette.contains(k.id, point));
+      $('hit-status').textContent = matches.length ? 'Treffer: ' + matches.map(k => k.name).join(', ') : 'Kein Treffer';
+      KQ.silhouette.mark(point, matches.length ? 'correct' : 'wrong');
+    }, true);
+    $('hit-canton').onchange = () => {
+      const id = $('hit-canton').value; KQ.silhouette.inspect(id);
+      KQ.map.labels(id ? [id] : KQ.KANTONE.map(k => k.id));
+      $('hit-description').textContent = id ? 'Toleranzradius: ' + KQ.silhouette.shapes[id].radius.toFixed(1) + ' Karteneinheiten.' : 'Alle Trefferflächen mit Toleranzrand.';
+      $('hit-status').textContent = '';
+    };
+    $('hit-canton').onchange();
+  }
   function route() {
     if (game) { game.dispose(); game = null; }
     clearTimeout(feedbackTimeout); KQ.map.reset();
@@ -262,6 +280,7 @@
       if (parts.length > 1) { location.replace('#/rangliste'); return; }
       leaderboard();
     }
+    else if (parts[0] === 'trefferflaechen') hitareas();
     else if (parts[0] === 'lernen') learn();
     else if (parts[0] === 'ergebnis') results();
     else home();
@@ -275,6 +294,7 @@
     else void KQ.api.leaderboard(event.detail).catch(() => {});
   });
   KQ.map.init();
+  KQ.silhouette.init();
   $('abort').onclick = () => { if (game && confirm('Quiz wirklich abbrechen? Diese Runde wird nicht gewertet.')) location.hash = '#/'; };
   document.addEventListener('keydown', event => {
     if (!game || event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
