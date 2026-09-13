@@ -26,3 +26,17 @@
 .map-hit-marker[data-state="correct"] { fill: var(--green); }
 .map-hit-marker[data-state="wrong"] { fill: var(--red); }
 #hit-canton { font: inherit; min-height: 44px; max-width: 100%; }
+
+/* Wappen quizzes share the timer and feedback, with no map. */
+.crest-quiz #prompt-wappen .crest { width: 140px; height: 160px; margin: 12px 0 20px; }
+.wappen-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+.wappen-grid .option { display: grid; place-items: center; padding: 10px; min-height: 96px; }
+.wappen-grid .crest { width: 58px; height: 70px; }
+@media (max-width: 850px) {
+  .wappen-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .wappen-grid .option { min-height: 82px; padding: 6px; }
+  .wappen-grid .crest { width: 50px; height: 62px; }
+}
+@media (max-width: 600px) {
+  .wappen-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

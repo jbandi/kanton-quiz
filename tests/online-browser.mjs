@@ -57,7 +57,7 @@ try {
   await finish(p); await submit(p, ' mia '); await status(p, 'In gemeinsamer Rangliste gespeichert');
   assert.equal(await p.evaluate(() => KQ.onlineStorage.load().nickname), 'MIA');
   await ranking(q); assert.equal(await q.locator('#ranking-erkennen tbody th').textContent(), 'MIA');
-  assert.equal(await q.locator('.quiz-ranking').count(), 5);
+  assert.equal(await q.locator('.quiz-ranking').count(), 7);
   assert.equal(await q.evaluate(() => location.hash), '#/rangliste');
   // The date and time must use Switzerland, even for browsers in another timezone.
   await db.prepare("UPDATE scores SET achieved_at='2026-09-11T22:34:56.000Z' WHERE nickname='MIA'").run();
@@ -111,6 +111,11 @@ try {
   await finish(q, 'silhouette', 4321); await submit(q); await status(q, 'In gemeinsamer Rangliste gespeichert');
   await ranking(p, 'silhouette');
   assert.equal(await p.locator('#ranking-silhouette tbody th').textContent(), 'RETRY');
+  for (const quiz of ['wappen-erkennen', 'wappen-blitz']) {
+    await finish(q, quiz, 5432); await submit(q); await status(q, 'In gemeinsamer Rangliste gespeichert');
+    await ranking(p, quiz);
+    assert.equal(await p.locator('#ranking-' + quiz + ' tbody th').textContent(), 'RETRY');
+  }
   // All rows render, even beyond ten; input is text and ranks are contiguous.
   for (let i = 0; i < 12; i++) {
     await call('players', 'POST', { nickname: 'MORE' + i, requestId: crypto.randomUUID() });

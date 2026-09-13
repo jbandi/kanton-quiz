@@ -43,6 +43,10 @@
     }
     start() {
       show('game'); mountMap('game-map-slot'); KQ.map.reset(); KQ.map.resetZoom();
+      $('map-panel').hidden = this.config.map === false;
+      $('game-view').classList.toggle('crest-quiz', this.config.map === false);
+      $('wappen-grid').replaceChildren();
+      $('wappen-grid').hidden = this.id !== 'wappen-blitz';
       $('game-title').textContent = this.config.title;
       $('progress').max = this.rounds.length;
       this.render();
@@ -53,9 +57,9 @@
       $('options').replaceChildren(); $('prompt-wappen').replaceChildren();
       $('feedback').hidden = true; $('feedback').onclick = null;
       $('check-answer').hidden = true; $('check-answer').onclick = null;
-      $('round-counter').textContent = this.id === 'blitz' ? this.index + ' / ' + this.rounds.length : 'Runde ' + (this.index + 1) + ' von ' + this.rounds.length;
+      $('round-counter').textContent = this.config.continuous ? this.index + ' / ' + this.rounds.length : 'Runde ' + (this.index + 1) + ' von ' + this.rounds.length;
       $('progress').value = this.index;
-      $('keyboard-hint').textContent = ['erkennen', 'nachbarn'].includes(this.id) ? 'Auch mit den Tasten 1–4' + (this.id === 'nachbarn' ? ' und Enter.' : '.') : 'Karte: mit Tab auswählen, mit Enter bestätigen. Zum Verschieben vergrössern.';
+      $('keyboard-hint').textContent = ['erkennen', 'nachbarn', 'wappen-erkennen'].includes(this.id) ? 'Auch mit den Tasten 1–4' + (this.id === 'nachbarn' ? ' und Enter.' : '.') : this.id === 'wappen-blitz' ? 'Wappen: mit Tab auswählen, mit Enter oder Leertaste bestätigen.' : 'Karte: mit Tab auswählen, mit Enter bestätigen. Zum Verschieben vergrössern.';
       KQ.quizzes[this.id].render(this);
       $('question').focus({ preventScroll: true });
       this.timer.resume();
@@ -90,7 +94,7 @@
       KQ.map.paint(id, 'correct'); KQ.map.disable(id);
       const button = this.button(id);
       if (button) button.classList.add('correct');
-      if (this.id === 'blitz') {
+      if (this.config.continuous) {
         KQ.map.paint(id, 'success-flash');
         this.record(); this.index++;
         if (this.index === this.rounds.length) this.finish(); else this.render();
@@ -182,7 +186,7 @@
     if (!result) { location.replace('#/'); return; }
     show('result');
     const perfect = result.rounds.filter(r => r.errors === 0).length;
-    $('result-view').innerHTML = '<p class="eyebrow">' + KQ.CONFIG[result.quizId].title + ' · GESCHAFFT</p><h1 id="result-title">Die Schweiz liegt dir!</h1>' + (result.isBest ? '<p class="new-best">✦ Neue persönliche Bestzeit!</p>' : '') + '<div class="result-time">' + KQ.formatTime(result.totalMs, true) + '</div><p class="result-caption">Deine Gesamtzeit</p><div class="result-stats"><div><strong>' + KQ.formatTime(result.netMs, true) + '</strong><span>Nettozeit</span></div><div><strong>+' + result.penaltyMs / 1000 + ' s</strong><span>Malus · ' + result.errors + ' Fehler</span></div><div><strong>' + perfect + ' von ' + result.rounds.length + '</strong><span>Runden fehlerfrei</span></div></div><h2>Deine Kantone</h2><ul class="round-results ' + (result.quizId === 'blitz' ? 'compact' : '') + '">' + result.rounds.map(r => '<li>' + crest(r.id) + '<span>' + escape(KQ.byId[r.id].name) + ' <small>(' + r.id + ')</small></span><strong class="' + (r.errors ? 'error-text' : 'success-text') + '">' + (r.errors ? '✗ ' + r.errors + ' Fehler' : '✓') + '</strong></li>').join('') + '</ul><div id="result-sharing"></div><div class="result-actions"><button class="secondary" id="play-again">Nochmals spielen</button><a id="result-home" href="#/">Zur Übersicht</a><a href="#/rangliste">Rangliste ansehen</a></div>';
+    $('result-view').innerHTML = '<p class="eyebrow">' + KQ.CONFIG[result.quizId].title + ' · GESCHAFFT</p><h1 id="result-title">Die Schweiz liegt dir!</h1>' + (result.isBest ? '<p class="new-best">✦ Neue persönliche Bestzeit!</p>' : '') + '<div class="result-time">' + KQ.formatTime(result.totalMs, true) + '</div><p class="result-caption">Deine Gesamtzeit</p><div class="result-stats"><div><strong>' + KQ.formatTime(result.netMs, true) + '</strong><span>Nettozeit</span></div><div><strong>+' + result.penaltyMs / 1000 + ' s</strong><span>Malus · ' + result.errors + ' Fehler</span></div><div><strong>' + perfect + ' von ' + result.rounds.length + '</strong><span>Runden fehlerfrei</span></div></div><h2>Deine Kantone</h2><ul class="round-results ' + (KQ.CONFIG[result.quizId].continuous ? 'compact' : '') + '">' + result.rounds.map(r => '<li>' + crest(r.id) + '<span>' + escape(KQ.byId[r.id].name) + ' <small>(' + r.id + ')</small></span><strong class="' + (r.errors ? 'error-text' : 'success-text') + '">' + (r.errors ? '✗ ' + r.errors + ' Fehler' : '✓') + '</strong></li>').join('') + '</ul><div id="result-sharing"></div><div class="result-actions"><button class="secondary" id="play-again">Nochmals spielen</button><a id="result-home" href="#/">Zur Übersicht</a><a href="#/rangliste">Rangliste ansehen</a></div>';
     const state = KQ.onlineStorage.load();
     const name = result.assignedNickname || state.nickname;
     const disabled = result.sending || result.saved || !!KQ.api.unavailable();
@@ -298,7 +302,7 @@
   $('abort').onclick = () => { if (game && confirm('Quiz wirklich abbrechen? Diese Runde wird nicht gewertet.')) location.hash = '#/'; };
   document.addEventListener('keydown', event => {
     if (!game || event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
-    if (/^[1-4]$/.test(event.key)) { event.preventDefault(); $('options').querySelectorAll('button')[Number(event.key) - 1]?.click(); }
+    if (['erkennen', 'nachbarn', 'wappen-erkennen'].includes(game.id) && /^[1-4]$/.test(event.key)) { event.preventDefault(); $('options').querySelectorAll('button')[Number(event.key) - 1]?.click(); }
     if (event.key === 'Enter' && game.id === 'nachbarn') { event.preventDefault(); if (game.locked) game.next(); else $('check-answer').click(); }
   });
   // Use pointerdown so the click that submitted an answer cannot skip its own feedback.
